@@ -45,6 +45,7 @@ async function run() {
     const testimonialsCollection = client
       .db("NestVentureDB")
       .collection("testimonials");
+    const stepsCollection = client.db("NestVentureDB").collection("steps");
 
     app.get("/slider", async (req, res) => {
       const result = await sliderCollection.find().toArray();
@@ -182,13 +183,19 @@ async function run() {
       res.send(result);
     });
     app.get("/services", async (req, res) => {
-      const limit = parseInt(req.query.limit) || 8;
+      const limit = parseInt(req.query.limit) || 6;
       const result = await servicesCollection.find().limit(limit).toArray();
       res.send(result);
     });
     app.post("/services", async (req, res) => {
       const newService = req.body;
       const result = await servicesCollection.insertOne(newService);
+      res.send(result);
+    });
+    app.delete("/services/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await servicesCollection.deleteOne(query);
       res.send(result);
     });
     app.get("/services/:id", async (req, res) => {
@@ -241,6 +248,62 @@ async function run() {
     app.get("/how-does-nest-works", async (req, res) => {
       const result = await howDoesNestWorksCollection.find().toArray();
       res.json(result);
+    });
+    app.get("/how-does-nest-works/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await howDoesNestWorksCollection.findOne(query);
+      res.send(result);
+    });
+    app.put("/how-does-nest-works/:id", async (req, res) => {
+      const id = req.params.id;
+      const filter = { _id: new ObjectId(id) };
+      const options = { upsert: true };
+      const updatedBody = req.body;
+      const bodyData = {
+        $set: {
+          title: updatedBody.title,
+          description: updatedBody.description,
+          mainImage: updatedBody.mainImage,
+        },
+      };
+      const result = await howDoesNestWorksCollection.updateOne(
+        filter,
+        bodyData,
+        options
+      );
+      res.send(result);
+    });
+    app.get("/steps", async (req, res) => {
+      const limit = parseInt(req.query.limit) || 6;
+      const result = await stepsCollection.find().limit(limit).toArray();
+      res.json(result);
+    });
+    app.get("/steps/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await stepsCollection.findOne(query);
+      res.send(result);
+    });
+    app.delete("/steps/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await stepsCollection.deleteOne(query);
+      res.send(result);
+    });
+    app.put("/steps/:id", async (req, res) => {
+      const id = req.params.id;
+      const filter = { _id: new ObjectId(id) };
+      const options = { upsert: true };
+      const updatedStep = req.body;
+      const step = {
+        $set: {
+          title: updatedStep.title,
+          description: updatedStep.description,
+        },
+      };
+      const result = await stepsCollection.updateOne(filter, step, options);
+      res.send(result);
     });
     app.get("/google-form", async (req, res) => {
       const result = await formCollection.find().toArray();
