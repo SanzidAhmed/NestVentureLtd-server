@@ -50,10 +50,21 @@ async function run() {
       const result = await sliderCollection.find().toArray();
       res.json(result);
     });
+    app.post("/slider", async (req, res) => {
+      const newSlider = req.body;
+      const result = await sliderCollection.insertOne(newSlider);
+      res.send(result);
+    });
     app.get("/slider/:id", async (req, res) => {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) };
       const result = await sliderCollection.findOne(query);
+      res.send(result);
+    });
+    app.delete("/slider/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await sliderCollection.deleteOne(query);
       res.send(result);
     });
     app.put("/slider/:id", async (req, res) => {
@@ -81,21 +92,151 @@ async function run() {
       const result = await aboutCompanyCollection.findOne(query);
       res.send(result);
     });
+    app.put("/about-company/:id", async (req, res) => {
+      const id = req.params.id;
+      const filter = { _id: new ObjectId(id) };
+      const options = { upsert: true };
+      const updatedAbout = req.body;
+      const about = {
+        $set: {
+          title: updatedAbout.title,
+          imageSrc: updatedAbout.imageSrc,
+          description: updatedAbout.description,
+          headline: updatedAbout.headline,
+          section1Title: updatedAbout.section1Title,
+          section1Description: updatedAbout.section1Description,
+          section2Title: updatedAbout.section2Title,
+          section2Description: updatedAbout.section2Description,
+        },
+      };
+      const result = await aboutCompanyCollection.updateOne(
+        filter,
+        about,
+        options
+      );
+      res.send(result);
+    });
     app.get("/growth", async (req, res) => {
-      const result = await growthCollection.find().toArray();
+      const limit = parseInt(req.query.limit) || 4;
+      const result = await growthCollection.find().limit(limit).toArray();
       res.json(result);
+    });
+    app.post("/growth", async (req, res) => {
+      const newGrowth = req.body;
+      const result = await growthCollection.insertOne(newGrowth);
+      res.send(result);
+    });
+    app.get("/growth/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await growthCollection.findOne(query);
+      res.send(result);
+    });
+    app.delete("/growth/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await growthCollection.deleteOne(query);
+      res.send(result);
+    });
+    app.put("/growth/:id", async (req, res) => {
+      const id = req.params.id;
+      const filter = { _id: new ObjectId(id) };
+      const options = { upsert: true };
+      const updatedGrowth = req.body;
+      const service = {
+        $set: {
+          title: updatedGrowth.title,
+          image: updatedGrowth.image,
+          buttonText: updatedGrowth.buttonText,
+        },
+      };
+      const result = await growthCollection.updateOne(filter, service, options);
+      res.send(result);
     });
     app.get("/statistics", async (req, res) => {
       const result = await statisticsCollection.find().toArray();
       res.json(result);
     });
+    app.get("/statistics/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await statisticsCollection.findOne(query);
+      res.send(result);
+    });
+    app.put("/statistics/:id", async (req, res) => {
+      const id = req.params.id;
+      const filter = { _id: new ObjectId(id) };
+      const options = { upsert: true };
+      const updatedStatistic = req.body;
+      const about = {
+        $set: {
+          value: updatedStatistic.value,
+          label: updatedStatistic.label,
+        },
+      };
+      const result = await statisticsCollection.updateOne(
+        filter,
+        about,
+        options
+      );
+      res.send(result);
+    });
     app.get("/services", async (req, res) => {
-      const result = await servicesCollection.find().toArray();
+      const limit = parseInt(req.query.limit) || 8;
+      const result = await servicesCollection.find().limit(limit).toArray();
+      res.send(result);
+    });
+    app.post("/services", async (req, res) => {
+      const newService = req.body;
+      const result = await servicesCollection.insertOne(newService);
+      res.send(result);
+    });
+    app.get("/services/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await servicesCollection.findOne(query);
+      res.send(result);
+    });
+    app.put("/services/:id", async (req, res) => {
+      const id = req.params.id;
+      const filter = { _id: new ObjectId(id) };
+      const options = { upsert: true };
+      const updatedService = req.body;
+      const about = {
+        $set: {
+          title: updatedService.title,
+          image: updatedService.image,
+          description: updatedService.description,
+        },
+      };
+      const result = await servicesCollection.updateOne(filter, about, options);
       res.send(result);
     });
     app.get("/video", async (req, res) => {
       const result = await videoCollection.find().toArray();
       res.json(result);
+    });
+    app.get("/video/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await videoCollection.findOne(query);
+      res.send(result);
+    });
+    app.put("/video/:id", async (req, res) => {
+      const id = req.params.id;
+      const filter = { _id: new ObjectId(id) };
+      const options = { upsert: true };
+      const updatedVideo = req.body;
+      const video = {
+        $set: {
+          title: updatedVideo.title,
+          thumbnail: updatedVideo.thumbnail,
+          description: updatedVideo.description,
+          videoUrl: updatedVideo.videoUrl,
+        },
+      };
+      const result = await videoCollection.updateOne(filter, video, options);
+      res.send(result);
     });
     app.get("/how-does-nest-works", async (req, res) => {
       const result = await howDoesNestWorksCollection.find().toArray();
