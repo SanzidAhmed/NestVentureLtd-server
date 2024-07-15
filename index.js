@@ -279,6 +279,15 @@ async function run() {
       const result = await stepsCollection.find().limit(limit).toArray();
       res.json(result);
     });
+    app.get("/steps-dashboard", async (req, res) => {
+      const page = parseInt(req.query.page) || 1;
+      const limit = parseInt(req.query.limit) || 10;
+      const skip = (page - 1) * limit;
+      const stepsCursor = stepsCollection.find().skip(skip).limit(limit);
+      const steps = await stepsCursor.toArray(); // Convert the cursor to an array
+      const total = await stepsCollection.countDocuments();
+      res.send({ steps, total });
+    });
     app.get("/steps/:id", async (req, res) => {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) };
