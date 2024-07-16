@@ -62,27 +62,35 @@ async function run() {
       const result = await sliderCollection.findOne(query);
       res.send(result);
     });
+    app.put("/slider/:id", async (req, res) => {
+      const id = req.params.id;
+      const filter = { _id: new ObjectId(id) };
+      const options = { upsert: true };
+      const updatedSlider = req.body;
+
+      // Fetch the existing slider data
+      const existingSlider = await sliderCollection.findOne(filter);
+
+      const slider = {
+        $set: {
+          title: updatedSlider.title,
+          image: updatedSlider.image || existingSlider.mainImage, // Retain the existing image if not provided
+          mainImage: existingSlider.image,
+          description: updatedSlider.description,
+        },
+      };
+
+      const result = await sliderCollection.updateOne(filter, slider, options);
+      res.send(result);
+    });
+
     app.delete("/slider/:id", async (req, res) => {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) };
       const result = await sliderCollection.deleteOne(query);
       res.send(result);
     });
-    app.put("/slider/:id", async (req, res) => {
-      const id = req.params.id;
-      const filter = { _id: new ObjectId(id) };
-      const options = { upsert: true };
-      const updatedSlider = req.body;
-      const slider = {
-        $set: {
-          title: updatedSlider.title,
-          image: updatedSlider.image,
-          description: updatedSlider.description,
-        },
-      };
-      const result = await sliderCollection.updateOne(filter, slider, options);
-      res.send(result);
-    });
+
     app.get("/about-company", async (req, res) => {
       const result = await aboutCompanyCollection.find().toArray();
       res.json(result);
@@ -98,10 +106,13 @@ async function run() {
       const filter = { _id: new ObjectId(id) };
       const options = { upsert: true };
       const updatedAbout = req.body;
+      const existingAbout = await aboutCompanyCollection.findOne(filter);
+
       const about = {
         $set: {
           title: updatedAbout.title,
-          imageSrc: updatedAbout.imageSrc,
+          image: updatedAbout.image || existingAbout.mainImage,
+          mainImage: existingAbout.image,
           description: updatedAbout.description,
           headline: updatedAbout.headline,
           section1Title: updatedAbout.section1Title,
@@ -144,10 +155,12 @@ async function run() {
       const filter = { _id: new ObjectId(id) };
       const options = { upsert: true };
       const updatedGrowth = req.body;
+      const existingGrowth = await growthCollection.findOne(filter);
       const service = {
         $set: {
           title: updatedGrowth.title,
-          image: updatedGrowth.image,
+          image: updatedGrowth.image || existingGrowth.mainImage,
+          mainImage: existingGrowth.image,
           buttonText: updatedGrowth.buttonText,
         },
       };
@@ -209,14 +222,21 @@ async function run() {
       const filter = { _id: new ObjectId(id) };
       const options = { upsert: true };
       const updatedService = req.body;
-      const about = {
+      const existingService = await servicesCollection.findOne(filter);
+
+      const service = {
         $set: {
           title: updatedService.title,
-          image: updatedService.image,
+          image: updatedService.image || existingService.mainImage,
+          mainImage: existingService.image,
           description: updatedService.description,
         },
       };
-      const result = await servicesCollection.updateOne(filter, about, options);
+      const result = await servicesCollection.updateOne(
+        filter,
+        service,
+        options
+      );
       res.send(result);
     });
     app.get("/video", async (req, res) => {
@@ -260,11 +280,14 @@ async function run() {
       const filter = { _id: new ObjectId(id) };
       const options = { upsert: true };
       const updatedBody = req.body;
+      const existingWork = await howDoesNestWorksCollection.findOne(filter);
+
       const bodyData = {
         $set: {
           title: updatedBody.title,
           description: updatedBody.description,
-          mainImage: updatedBody.mainImage,
+          image: updatedBody.image || existingWork.mainImage,
+          mainImage: existingWork.image,
         },
       };
       const result = await howDoesNestWorksCollection.updateOne(
@@ -275,7 +298,7 @@ async function run() {
       res.send(result);
     });
     app.get("/steps", async (req, res) => {
-      const limit = parseInt(req.query.limit) || 6;
+      const limit = parseInt(req.query.limit) || 8;
       const result = await stepsCollection.find().limit(limit).toArray();
       res.json(result);
     });
