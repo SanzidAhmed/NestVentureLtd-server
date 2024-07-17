@@ -46,6 +46,9 @@ async function run() {
       .db("NestVentureDB")
       .collection("testimonials");
     const stepsCollection = client.db("NestVentureDB").collection("steps");
+    const registrationformAsInvestorCollection = client
+      .db("NestVentureDB")
+      .collection("investor-registration-form");
 
     app.get("/slider", async (req, res) => {
       const result = await sliderCollection.find().toArray();
@@ -335,6 +338,21 @@ async function run() {
         },
       };
       const result = await stepsCollection.updateOne(filter, step, options);
+      res.send(result);
+    });
+    app.get("/register-as-investor", async (req, res) => {
+      const result = await registrationformAsInvestorCollection
+        .find()
+        .toArray();
+      res.send(result);
+    });
+    app.post("/register-as-investor", async (req, res) => {
+      const newUser = req.body;
+      console.log(newUser);
+
+      const result = await registrationformAsInvestorCollection.insertOne(
+        newUser
+      );
       res.send(result);
     });
     app.get("/google-form", async (req, res) => {
