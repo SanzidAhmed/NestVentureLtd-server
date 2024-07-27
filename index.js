@@ -49,6 +49,9 @@ async function run() {
     const registrationformAsInvestorCollection = client
       .db("NestVentureDB")
       .collection("investor-registration-form");
+    const sponsorsCollection = client
+      .db("NestVentureDB")
+      .collection("sponsors");
 
     app.get("/slider", async (req, res) => {
       const result = await sliderCollection.find().toArray();
@@ -362,6 +365,71 @@ async function run() {
     app.get("/testimonials", async (req, res) => {
       const result = await testimonialsCollection.find().toArray();
       res.json(result);
+    });
+    app.get("/testimonials/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await testimonialsCollection.findOne(query);
+      res.send(result);
+    });
+    app.put("/testimonials/:id", async (req, res) => {
+      const id = req.params.id;
+      const filter = { _id: new ObjectId(id) };
+      const options = { upsert: true };
+      const updatedTestimonial = req.body;
+      const testimonials = {
+        $set: {
+          name: updatedTestimonial.name,
+          testimonial: updatedTestimonial.testimonial,
+        },
+      };
+      const result = await testimonialsCollection.updateOne(
+        filter,
+        testimonials,
+        options
+      );
+      res.send(result);
+    });
+    app.delete("/testimonials/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await testimonialsCollection.deleteOne(query);
+      res.send(result);
+    });
+    app.get("/sponsors", async (req, res) => {
+      const result = await sponsorsCollection.find().toArray();
+      res.json(result);
+    });
+    app.get("/sponsors/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await sponsorsCollection.findOne(query);
+      res.send(result);
+    });
+    app.put("/sponsors/:id", async (req, res) => {
+      const id = req.params.id;
+      const filter = { _id: new ObjectId(id) };
+      const options = { upsert: true };
+      const updateSponsor = req.body;
+      const existingSponsor = await sponsorsCollection.findOne(filter);
+      const sponsor = {
+        $set: {
+          image: updateSponsor.image || existingSponsor.mainImage,
+          mainImage: existingSponsor.image,
+        },
+      };
+      const result = await sponsorsCollection.updateOne(
+        filter,
+        sponsor,
+        options
+      );
+      res.send(result);
+    });
+    app.delete("/sponsors/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await sponsorsCollection.deleteOne(query);
+      res.send(result);
     });
     // Connect the client to the server	(optional starting in v4.7)
     await client.connect();
