@@ -1,12 +1,17 @@
 const express = require("express");
 const app = express();
 const cors = require("cors");
+const multer = require("multer");
+const sharp = require("sharp");
+const path = require("path");
+const fs = require("fs");
 require("dotenv").config();
 const port = process.env.PORT || 3300;
 
 // middleware
 app.use(cors());
 app.use(express.json());
+app.use("/storage", express.static(path.join(__dirname, "storage")));
 
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.c70onov.mongodb.net/?appName=Cluster0`;
@@ -19,7 +24,26 @@ const client = new MongoClient(uri, {
     deprecationErrors: true,
   },
 });
+const imageUpload = path.join(__dirname, "storage");
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, imageUpload);
+  },
+  filename: function (req, file, cb) {
+    cb(null, file.originalname);
+  },
+});
 
+const upload = multer({
+  storage: storage,
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = ["image/jpeg", "image/png", "image/jpg"];
+    if (!allowedTypes.includes(file.mimetype)) {
+      return cb(new Error("Invalid file type"), false);
+    }
+    cb(null, true);
+  },
+});
 async function run() {
   try {
     const sliderCollection = client.db("NestVentureDB").collection("slider");
@@ -57,10 +81,41 @@ async function run() {
       const result = await sliderCollection.find().toArray();
       res.json(result);
     });
-    app.post("/slider", async (req, res) => {
-      const newSlider = req.body;
-      const result = await sliderCollection.insertOne(newSlider);
-      res.send(result);
+    app.post("/slider", upload.single("image"), async (req, res) => {
+      const newSlider = {
+        title: req.body.title,
+        description: req.body.description,
+        link: req.body.link,
+        image: `/storage/${req.file.filename}`,
+      };
+
+      if (!req.file) {
+        return res.status(400).send("No file uploaded.");
+      }
+
+      try {
+        // Path to the uploaded file
+        const filePath = req.file.path;
+
+        // Resize image
+        const resizedImage = await sharp(filePath)
+          .resize({ width: 800, height: 600, fit: "inside" })
+          .jpeg({ quality: 80 })
+          .toBuffer();
+
+        if (resizedImage.length > 1024 * 1024) {
+          return res
+            .status(400)
+            .send("Image size exceeds 1MB even after resizing.");
+        }
+
+        // Save to MongoDB
+        const result = await sliderCollection.insertOne(newSlider);
+
+        res.send(result);
+      } catch (error) {
+        res.status(500).send("Error processing file.");
+      }
     });
     app.get("/slider/:id", async (req, res) => {
       const id = req.params.id;
@@ -68,26 +123,52 @@ async function run() {
       const result = await sliderCollection.findOne(query);
       res.send(result);
     });
-    app.put("/slider/:id", async (req, res) => {
+    app.put("/slider/:id", upload.single("image"), async (req, res) => {
       const id = req.params.id;
       const filter = { _id: new ObjectId(id) };
-      const options = { upsert: true };
       const updatedSlider = req.body;
+      const options = { upsert: true };
 
-      // Fetch the existing slider data
-      const existingSlider = await sliderCollection.findOne(filter);
+      try {
+        const existingSlider = await sliderCollection.findOne(filter);
 
-      const slider = {
-        $set: {
-          title: updatedSlider.title,
-          image: updatedSlider.image || existingSlider.mainImage, // Retain the existing image if not provided
-          mainImage: existingSlider.image,
-          description: updatedSlider.description,
-        },
-      };
+        if (!existingSlider) {
+          return res.status(404).send({ message: "Slider not found" });
+        }
 
-      const result = await sliderCollection.updateOne(filter, slider, options);
-      res.send(result);
+        const updateDoc = {
+          $set: {
+            title: updatedSlider.title,
+            description: updatedSlider.description,
+            link: updatedSlider.link,
+            image: req.file
+              ? `/storage/${req.file.filename}`
+              : existingSlider.image,
+          },
+        };
+
+        const result = await sliderCollection.updateOne(
+          filter,
+          updateDoc,
+          options
+        );
+
+        if (req.file) {
+          const oldImagePath = path.join(
+            __dirname,
+            "storage",
+            existingSlider.image.split("/storage/")[1]
+          );
+          if (fs.existsSync(oldImagePath)) {
+            fs.unlinkSync(oldImagePath);
+          }
+        }
+
+        res.send(result);
+      } catch (error) {
+        console.error(error);
+        res.status(500).send(error);
+      }
     });
 
     app.delete("/slider/:id", async (req, res) => {
@@ -107,33 +188,59 @@ async function run() {
       const result = await aboutCompanyCollection.findOne(query);
       res.send(result);
     });
-    app.put("/about-company/:id", async (req, res) => {
+    app.put("/about-company/:id", upload.single("image"), async (req, res) => {
       const id = req.params.id;
       const filter = { _id: new ObjectId(id) };
-      const options = { upsert: true };
       const updatedAbout = req.body;
-      const existingAbout = await aboutCompanyCollection.findOne(filter);
+      console.log(updatedAbout);
+      const options = { upsert: true };
 
-      const about = {
-        $set: {
-          title: updatedAbout.title,
-          image: updatedAbout.image || existingAbout.mainImage,
-          mainImage: existingAbout.image,
-          description: updatedAbout.description,
-          headline: updatedAbout.headline,
-          section1Title: updatedAbout.section1Title,
-          section1Description: updatedAbout.section1Description,
-          section2Title: updatedAbout.section2Title,
-          section2Description: updatedAbout.section2Description,
-        },
-      };
-      const result = await aboutCompanyCollection.updateOne(
-        filter,
-        about,
-        options
-      );
-      res.send(result);
+      try {
+        const existingAbout = await aboutCompanyCollection.findOne(filter);
+
+        if (!existingAbout) {
+          return res.status(404).send({ message: "About not found" });
+        }
+
+        const updateDoc = {
+          $set: {
+            title: updatedAbout.title,
+            description: updatedAbout.description,
+            section1Title: updatedAbout.section1Title,
+            section1Description: updatedAbout.section1Description,
+            section2Title: updatedAbout.section2Title,
+            section2Description: updatedAbout.section2Description,
+            headline: updatedAbout.headline,
+            image: req.file
+              ? `/storage/${req.file.filename}`
+              : existingAbout.image,
+          },
+        };
+
+        const result = await aboutCompanyCollection.updateOne(
+          filter,
+          updateDoc,
+          options
+        );
+
+        if (req.file) {
+          const oldImagePath = path.join(
+            __dirname,
+            "storage",
+            existingAbout.image.split("/storage/")[1]
+          );
+          if (fs.existsSync(oldImagePath)) {
+            fs.unlinkSync(oldImagePath);
+          }
+        }
+
+        res.send(result);
+      } catch (error) {
+        console.error(error);
+        res.status(500).send(error);
+      }
     });
+
     app.get("/growth", async (req, res) => {
       const limit = parseInt(req.query.limit) || 4;
       const result = await growthCollection.find().limit(limit).toArray();
