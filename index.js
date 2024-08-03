@@ -30,7 +30,8 @@ const storage = multer.diskStorage({
     cb(null, imageUpload);
   },
   filename: function (req, file, cb) {
-    cb(null, file.originalname);
+    const uniqueSuffix = Date.now();
+    cb(null, file.originalname + uniqueSuffix);
   },
 });
 
@@ -43,6 +44,28 @@ const upload = multer({
     }
     cb(null, true);
   },
+  limits: {
+    files: 100,
+    fileSize: 1 * 1024 * 1024, // 5 MB
+  },
+});
+app.use((err, req, res, next) => {
+  if (err instanceof multer.MulterError) {
+    if (err.code === "LIMIT_FILE_SIZE") {
+      return res
+        .status(400)
+        .send({ message: "File size exceeds limit of 5MB" });
+    }
+    if (err.code === "LIMIT_FILE_COUNT") {
+      return res
+        .status(400)
+        .send({ message: "File count exceeds limit of 100" });
+    }
+    return res.status(400).send({ message: err.message });
+  } else if (err) {
+    return res.status(500).send({ message: err.message });
+  }
+  next();
 });
 async function run() {
   try {
@@ -114,7 +137,8 @@ async function run() {
 
         res.send(result);
       } catch (error) {
-        res.status(500).send("Error processing file.");
+        console.error(error);
+        res.status(500).send(error);
       }
     });
     app.get("/slider/:id", async (req, res) => {
@@ -135,7 +159,9 @@ async function run() {
         if (!existingSlider) {
           return res.status(404).send({ message: "Slider not found" });
         }
-
+        const newImagePath = req.file
+          ? `/storage/${req.file.filename}`
+          : existingSlider.image;
         const updateDoc = {
           $set: {
             title: updatedSlider.title,
@@ -153,7 +179,7 @@ async function run() {
           options
         );
 
-        if (req.file) {
+        if (req.file && existingSlider.image !== newImagePath) {
           const oldImagePath = path.join(
             __dirname,
             "storage",
@@ -174,8 +200,38 @@ async function run() {
     app.delete("/slider/:id", async (req, res) => {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) };
+
+      // Find the item to ensure it exists
+      const existingSlider = await sliderCollection.findOne(query);
+
+      if (!existingSlider) {
+        return res.status(404).json({ message: "Growth not found" });
+      }
+
+      // Delete the item from the database
       const result = await sliderCollection.deleteOne(query);
-      res.send(result);
+
+      if (result.deletedCount === 1) {
+        const imagePath = path.join(
+          __dirname,
+          "storage",
+          existingSlider.image.split("/storage/")[1]
+        );
+
+        // Check if the file exists before attempting to delete it
+        if (fs.existsSync(imagePath)) {
+          fs.unlinkSync(imagePath);
+          console.log("File deleted successfully:", imagePath);
+        } else {
+          console.warn("File does not exist:", imagePath);
+        }
+
+        return res.status(200).json({
+          message: "Growth and associated image deleted successfully",
+        });
+      } else {
+        return res.status(500).json({ message: "Failed to delete growth" });
+      }
     });
 
     app.get("/about-company", async (req, res) => {
@@ -201,7 +257,9 @@ async function run() {
         if (!existingAbout) {
           return res.status(404).send({ message: "About not found" });
         }
-
+        const newImagePath = req.file
+          ? `/storage/${req.file.filename}`
+          : existingAbout.image;
         const updateDoc = {
           $set: {
             title: updatedAbout.title,
@@ -223,7 +281,7 @@ async function run() {
           options
         );
 
-        if (req.file) {
+        if (req.file && existingAbout.image !== newImagePath) {
           const oldImagePath = path.join(
             __dirname,
             "storage",
@@ -242,44 +300,128 @@ async function run() {
     });
 
     app.get("/growth", async (req, res) => {
-      const limit = parseInt(req.query.limit) || 4;
+      const limit = parseInt(req.query.limit) || 6;
       const result = await growthCollection.find().limit(limit).toArray();
       res.json(result);
     });
-    app.post("/growth", async (req, res) => {
-      const newGrowth = req.body;
-      const result = await growthCollection.insertOne(newGrowth);
-      res.send(result);
+    app.post("/growth", upload.single("image"), async (req, res) => {
+      if (!req.file) {
+        return res.status(400).send("No file uploaded.");
+      }
+
+      const newGrowth = {
+        title: req.body.title,
+        buttonText: req.body.buttonText,
+        image: `/storage/${req.file.filename}`,
+      };
+
+      try {
+        // Save to MongoDB
+        const result = await growthCollection.insertOne(newGrowth);
+        res.send(result);
+      } catch (error) {
+        console.error(error);
+        res.status(500).send(error);
+      }
     });
+
     app.get("/growth/:id", async (req, res) => {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) };
       const result = await growthCollection.findOne(query);
       res.send(result);
     });
-    app.delete("/growth/:id", async (req, res) => {
+    app.delete("/growth/:id", async (req, res, next) => {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) };
+
+      // Find the item to ensure it exists
+      const existingGrowth = await growthCollection.findOne(query);
+
+      if (!existingGrowth) {
+        return res.status(404).json({ message: "Growth not found" });
+      }
+
+      // Delete the item from the database
       const result = await growthCollection.deleteOne(query);
-      res.send(result);
+
+      if (result.deletedCount === 1) {
+        const imagePath = path.join(
+          __dirname,
+          "storage",
+          existingGrowth.image.split("/storage/")[1]
+        );
+
+        // Check if the file exists before attempting to delete it
+        if (fs.existsSync(imagePath)) {
+          fs.unlinkSync(imagePath);
+          console.log("File deleted successfully:", imagePath);
+        } else {
+          console.warn("File does not exist:", imagePath);
+        }
+
+        return res.status(200).json({
+          message: "Growth and associated image deleted successfully",
+        });
+      } else {
+        return res.status(500).json({ message: "Failed to delete growth" });
+      }
     });
-    app.put("/growth/:id", async (req, res) => {
+
+    // Error-handling middleware should be defined after all route handlers
+
+    app.put("/growth/:id", upload.single("image"), async (req, res) => {
       const id = req.params.id;
       const filter = { _id: new ObjectId(id) };
-      const options = { upsert: true };
       const updatedGrowth = req.body;
-      const existingGrowth = await growthCollection.findOne(filter);
-      const service = {
-        $set: {
-          title: updatedGrowth.title,
-          image: updatedGrowth.image || existingGrowth.mainImage,
-          mainImage: existingGrowth.image,
-          buttonText: updatedGrowth.buttonText,
-        },
-      };
-      const result = await growthCollection.updateOne(filter, service, options);
-      res.send(result);
+      console.log(updatedGrowth);
+      const options = { upsert: true };
+
+      try {
+        const existingGrowth = await growthCollection.findOne(filter);
+
+        if (!existingGrowth) {
+          return res.status(404).send({ message: "About not found" });
+        }
+        const newImagePath = req.file
+          ? `/storage/${req.file.filename}`
+          : existingGrowth.image;
+
+        const updateDoc = {
+          $set: {
+            title: updatedGrowth.title,
+            buttonText: updatedGrowth.buttonText,
+
+            image: req.file
+              ? `/storage/${req.file.filename}`
+              : existingGrowth.image,
+          },
+        };
+
+        const result = await growthCollection.updateOne(
+          filter,
+          updateDoc,
+          options
+        );
+
+        if (req.file && existingGrowth.image !== newImagePath) {
+          const oldImagePath = path.join(
+            __dirname,
+            "storage",
+            existingGrowth.image.split("/storage/")[1]
+          );
+          if (fs.existsSync(oldImagePath)) {
+            fs.unlinkSync(oldImagePath);
+          }
+        }
+
+        res.send(result);
+      } catch (error) {
+        console.error(error);
+        res.status(500).send(error);
+      }
     });
+
     app.get("/statistics", async (req, res) => {
       const result = await statisticsCollection.find().toArray();
       res.json(result);
@@ -313,16 +455,62 @@ async function run() {
       const result = await servicesCollection.find().limit(limit).toArray();
       res.send(result);
     });
-    app.post("/services", async (req, res) => {
-      const newService = req.body;
-      const result = await servicesCollection.insertOne(newService);
-      res.send(result);
+    app.post("/services", upload.single("image"), async (req, res) => {
+      if (!req.file) {
+        return res.status(400).send("No file uploaded.");
+      }
+
+      const newService = {
+        title: req.body.title,
+        description: req.body.description,
+        image: `/storage/${req.file.filename}`,
+      };
+
+      try {
+        // Save to MongoDB
+        const result = await servicesCollection.insertOne(newService);
+        res.send(result);
+      } catch (error) {
+        console.error(error);
+        res.status(500).send(error);
+      }
     });
+
     app.delete("/services/:id", async (req, res) => {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) };
+
+      // Find the item to ensure it exists
+      const existingService = await servicesCollection.findOne(query);
+
+      if (!existingService) {
+        return res.status(404).json({ message: "Growth not found" });
+      }
+
+      // Delete the item from the database
       const result = await servicesCollection.deleteOne(query);
-      res.send(result);
+
+      if (result.deletedCount === 1) {
+        const imagePath = path.join(
+          __dirname,
+          "storage",
+          existingService.image.split("/storage/")[1]
+        );
+
+        // Check if the file exists before attempting to delete it
+        if (fs.existsSync(imagePath)) {
+          fs.unlinkSync(imagePath);
+          console.log("File deleted successfully:", imagePath);
+        } else {
+          console.warn("File does not exist:", imagePath);
+        }
+
+        return res.status(200).json({
+          message: "Growth and associated image deleted successfully",
+        });
+      } else {
+        return res.status(500).json({ message: "Failed to delete growth" });
+      }
     });
     app.get("/services/:id", async (req, res) => {
       const id = req.params.id;
@@ -330,27 +518,55 @@ async function run() {
       const result = await servicesCollection.findOne(query);
       res.send(result);
     });
-    app.put("/services/:id", async (req, res) => {
+    app.put("/services/:id", upload.single("image"), async (req, res) => {
       const id = req.params.id;
       const filter = { _id: new ObjectId(id) };
+      const updateService = req.body;
       const options = { upsert: true };
-      const updatedService = req.body;
-      const existingService = await servicesCollection.findOne(filter);
 
-      const service = {
-        $set: {
-          title: updatedService.title,
-          image: updatedService.image || existingService.mainImage,
-          mainImage: existingService.image,
-          description: updatedService.description,
-        },
-      };
-      const result = await servicesCollection.updateOne(
-        filter,
-        service,
-        options
-      );
-      res.send(result);
+      try {
+        const existingService = await servicesCollection.findOne(filter);
+
+        if (!existingService) {
+          return res.status(404).send({ message: "About not found" });
+        }
+        const newImagePath = req.file
+          ? `/storage/${req.file.filename}`
+          : existingService.image;
+
+        const updateDoc = {
+          $set: {
+            title: updateService.title,
+            description: updateService.description,
+
+            image: req.file
+              ? `/storage/${req.file.filename}`
+              : existingService.image,
+          },
+        };
+
+        const result = await servicesCollection.updateOne(
+          filter,
+          updateDoc,
+          options
+        );
+
+        if (req.file && existingService.image !== newImagePath) {
+          const oldImagePath = path.join(
+            __dirname,
+            "storage",
+            existingService.image.split("/storage/")[1]
+          );
+          if (fs.existsSync(oldImagePath)) {
+            fs.unlinkSync(oldImagePath);
+          }
+        }
+
+        res.send(result);
+      } catch (error) {
+        console.error(error);
+        res.status(500).send(error);
+      }
     });
     app.get("/video", async (req, res) => {
       const result = await videoCollection.find().toArray();
@@ -388,28 +604,60 @@ async function run() {
       const result = await howDoesNestWorksCollection.findOne(query);
       res.send(result);
     });
-    app.put("/how-does-nest-works/:id", async (req, res) => {
-      const id = req.params.id;
-      const filter = { _id: new ObjectId(id) };
-      const options = { upsert: true };
-      const updatedBody = req.body;
-      const existingWork = await howDoesNestWorksCollection.findOne(filter);
+    app.put(
+      "/how-does-nest-works/:id",
+      upload.single("image"),
+      async (req, res) => {
+        const id = req.params.id;
+        const filter = { _id: new ObjectId(id) };
+        const updatedBody = req.body;
+        const options = { upsert: true };
 
-      const bodyData = {
-        $set: {
-          title: updatedBody.title,
-          description: updatedBody.description,
-          image: updatedBody.image || existingWork.mainImage,
-          mainImage: existingWork.image,
-        },
-      };
-      const result = await howDoesNestWorksCollection.updateOne(
-        filter,
-        bodyData,
-        options
-      );
-      res.send(result);
-    });
+        try {
+          const existingBody = await howDoesNestWorksCollection.findOne(filter);
+
+          if (!existingBody) {
+            return res.status(404).send({ message: "Slider not found" });
+          }
+          const newImagePath = req.file
+            ? `/storage/${req.file.filename}`
+            : existingBody.image;
+          const updateDoc = {
+            $set: {
+              title: updatedBody.title,
+              description: updatedBody.description,
+              subtitle: updatedBody.subtitle,
+              image: req.file
+                ? `/storage/${req.file.filename}`
+                : existingBody.image,
+            },
+          };
+
+          const result = await howDoesNestWorksCollection.updateOne(
+            filter,
+            updateDoc,
+            options
+          );
+
+          if (req.file && existingBody.image !== newImagePath) {
+            const oldImagePath = path.join(
+              __dirname,
+              "storage",
+              existingBody.image.split("/storage/")[1]
+            );
+            if (fs.existsSync(oldImagePath)) {
+              fs.unlinkSync(oldImagePath);
+            }
+          }
+
+          res.send(result);
+        } catch (error) {
+          console.error(error);
+          res.status(500).send(error);
+        }
+      }
+    );
+
     app.get("/steps", async (req, res) => {
       const limit = parseInt(req.query.limit) || 8;
       const result = await stepsCollection.find().limit(limit).toArray();
@@ -555,7 +803,24 @@ run().catch(console.dir);
 app.get("/", (req, res) => {
   res.send("boss is sitting");
 });
-
+app.use((err, req, res, next) => {
+  if (err instanceof multer.MulterError) {
+    if (err.code === "LIMIT_FILE_SIZE") {
+      return res
+        .status(400)
+        .send({ message: "File size exceeds limit of 1MB" });
+    }
+    if (err.code === "LIMIT_FILE_COUNT") {
+      return res
+        .status(400)
+        .send({ message: "File count exceeds limit of 100" });
+    }
+    return res.status(400).send({ message: err.message });
+  } else if (err) {
+    return res.status(500).send({ message: err.message });
+  }
+  next();
+});
 app.listen(port, () => {
   console.log(`Server running on port ${port}`);
 });
