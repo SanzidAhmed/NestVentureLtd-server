@@ -52,7 +52,37 @@ async function run() {
     const sponsorsCollection = client
       .db("NestVentureDB")
       .collection("sponsors");
+    const logoCollection = client.db("NestVentureDB").collection("logo");
 
+    app.get("/logo", async (req, res) => {
+      const result = await logoCollection.find().toArray();
+      res.json(result);
+    });
+    app.get("/logo/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await logoCollection.findOne(query);
+      res.send(result);
+    });
+    app.put("/logo/:id", async (req, res) => {
+      const id = req.params.id;
+      const filter = { _id: new ObjectId(id) };
+      const options = { upsert: true };
+      const updateLogo = req.body;
+
+      // Fetch the existing slider data
+      const existingLogo = await logoCollection.findOne(filter);
+
+      const logo = {
+        $set: {
+          image: updateLogo.image || existingLogo.mainImage, // Retain the existing image if not provided
+          mainImage: existingLogo.image,
+        },
+      };
+
+      const result = await logoCollection.updateOne(filter, logo, options);
+      res.send(result);
+    });
     app.get("/slider", async (req, res) => {
       const result = await sliderCollection.find().toArray();
       res.json(result);
@@ -80,9 +110,9 @@ async function run() {
       const slider = {
         $set: {
           title: updatedSlider.title,
-          image: updatedSlider.image || existingSlider.mainImage, // Retain the existing image if not provided
-          mainImage: existingSlider.image,
+          image: updatedSlider.image || existingSlider.image, // Retain the existing image if not provided
           description: updatedSlider.description,
+          link: updatedSlider.link,
         },
       };
 
@@ -117,8 +147,7 @@ async function run() {
       const about = {
         $set: {
           title: updatedAbout.title,
-          image: updatedAbout.image || existingAbout.mainImage,
-          mainImage: existingAbout.image,
+          image: updatedAbout.image || existingAbout.image,
           description: updatedAbout.description,
           headline: updatedAbout.headline,
           section1Title: updatedAbout.section1Title,
@@ -165,8 +194,7 @@ async function run() {
       const service = {
         $set: {
           title: updatedGrowth.title,
-          image: updatedGrowth.image || existingGrowth.mainImage,
-          mainImage: existingGrowth.image,
+          image: updatedGrowth.image || existingGrowth.image,
           buttonText: updatedGrowth.buttonText,
         },
       };
@@ -233,8 +261,7 @@ async function run() {
       const service = {
         $set: {
           title: updatedService.title,
-          image: updatedService.image || existingService.mainImage,
-          mainImage: existingService.image,
+          image: updatedService.image || existingService.image,
           description: updatedService.description,
         },
       };
@@ -260,10 +287,11 @@ async function run() {
       const filter = { _id: new ObjectId(id) };
       const options = { upsert: true };
       const updatedVideo = req.body;
+      const existingVideo = await videoCollection.findOne(filter);
       const video = {
         $set: {
           title: updatedVideo.title,
-          thumbnail: updatedVideo.thumbnail,
+          thumbnail: updatedVideo.thumbnail || existingVideo.thumbnail,
           description: updatedVideo.description,
           videoUrl: updatedVideo.videoUrl,
         },
@@ -292,8 +320,7 @@ async function run() {
         $set: {
           title: updatedBody.title,
           description: updatedBody.description,
-          image: updatedBody.image || existingWork.mainImage,
-          mainImage: existingWork.image,
+          image: updatedBody.image || existingWork.image,
         },
       };
       const result = await howDoesNestWorksCollection.updateOne(
@@ -358,9 +385,21 @@ async function run() {
       );
       res.send(result);
     });
-    app.get("/google-form", async (req, res) => {
-      const result = await formCollection.find().toArray();
-      res.json(result);
+    app.get("/register-as-investor/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await registrationformAsInvestorCollection.findOne(query);
+      res.send(result);
+    });
+    app.delete("/register-as-investor/:id", async (req, res) => {
+      const id = req.params.id;
+      console.log(id);
+      const query = { _id: new ObjectId(id) };
+      console.log(query);
+      const result = await registrationformAsInvestorCollection.deleteOne(
+        query
+      );
+      res.send(result);
     });
     app.get("/testimonials", async (req, res) => {
       const result = await testimonialsCollection.find().toArray();
@@ -414,8 +453,7 @@ async function run() {
       const existingSponsor = await sponsorsCollection.findOne(filter);
       const sponsor = {
         $set: {
-          image: updateSponsor.image || existingSponsor.mainImage,
-          mainImage: existingSponsor.image,
+          image: updateSponsor.image || existingSponsor.image,
         },
       };
       const result = await sponsorsCollection.updateOne(
